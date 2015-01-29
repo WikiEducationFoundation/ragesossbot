@@ -7,6 +7,7 @@ does not already exist.
 """
 #
 # (C) Pywikibot team, 2006-2014
+# (C) Sage Ross, 2014-2015
 #
 # Distributed under the terms of the MIT license.
 #
@@ -20,7 +21,7 @@ from pywikibot import pagegenerators
 from pywikibot import i18n
 
 # Configuration variables
-COURSES_LIST = u"User:RagesossBot/course_ids"
+COURSES_LIST = u"Wikipedia:Education_program/Dashboard/course_ids"
 CONTENTS = '{{student sandbox}}'
 
 # This is required for the text that is shown when you run this script
@@ -56,6 +57,9 @@ class BasicBot:
         # Set the edit summary message
         site = pywikibot.Site()
         self.summary = 'adding ' + CONTENTS
+        # Set the control page, which is used to turn the bot on and off. The page text should simply be 'run' to turn it on.
+        controlpage = pywikibot.Page(site, u"User:RagesossBot/control")
+        self.control = controlpage.get()
 
     def getsandboxes(self):
         # write a file with course page IDs
@@ -71,7 +75,9 @@ class BasicBot:
             response = urllib2.urlopen(api_query_url)
             str_response = response.read()
             data = json.loads(str_response, "utf8" )
-            users = users + data["students"]
+            users_data = data["students"]
+            for user in users_data:
+                users.append(user["username"])
         
         # turn these usernames into /sandbox user pages    
         users = [('User:' + user + '/sandbox') for user in users]
@@ -83,9 +89,12 @@ class BasicBot:
         f.close()
         
     def run(self):
-        """ Process each page from the generator. """
-        for page in self.generator:
-            self.treat(page)
+	# If the text of the control page is not simply 'run', do not do anything.
+        if self.control == 'run':
+            for page in self.generator:
+                self.treat(page)
+        else:
+            print 'Control text not found. Stopping the bot.'
  
     def treat(self, page):
         """ Load the given page, does some changes, and saves it. """
@@ -112,7 +121,7 @@ class BasicBot:
         except pywikibot.exceptions.NoPage:
             # This bot only works on blank pages, so we want 'load' to tell us
             # when that's the case.
-            pywikibot.output(u"Page %s already exists; skipping."
+            pywikibot.output(u"Page %s doesn't exist, so let's create it."
                              % page.title(asLink=True))
 
             return 'blank page'
@@ -178,7 +187,7 @@ def main(*args):
     gen = None
     # If dry is True, doesn't do any real changes, but only show
     # what would have been changed.
-    dry = True
+    dry = False
 
     sandboxbot = BasicBot(gen, dry)
     # Get the list of sandboxes
